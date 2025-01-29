@@ -1,266 +1,220 @@
 #include <Adafruit_NeoPixel.h> 
 #include <SD.h>
 
-#define D2 2
-#define NUMPIXELS 16
-
-
-// global variables for the FSRs
-int FORCE_THRESHOLD = 200; 
-const int NUM_FSR = 4;
-const int FSR_PINS[4] = {A0, A1, A2, A3};
-const int FSR_INDICES[4][3] = {
-  {0, 1, 2},
-  {4, 5, 6},
-  {8, 9, 10},
-  {12, 13, 14}
+// global variables for the FSRs -----------------------------------------------
+int forceThreshold = 200;
+const int FSR_PINS[4] = {A0, A1, A2, A3};      // 0 and 2, 1 and 3 connected
+const int FSR_INDICES[2][6] = {
+  {0, 1, 2, 8, 9, 10},
+  {4, 5, 6, 12, 13, 14}
 };
 
 
-// global variables for the neopixel
-Adafruit_NeoPixel strip(NUMPIXELS, D2, NEO_GRB + NEO_KHZ800);
+// global variables for the neopixel -------------------------------------------
+Adafruit_NeoPixel strip(16, 2, NEO_GRB + NEO_KHZ800);
+enum TrafficStates { RED, GREEN };
+int currentState[2];
+enum Roads { nSouth, eWest };
+bool pressureOn[4] = {false, false, false, false};
 
 
-// global variables for the microSD card reader
-const int SD_CS_PIN = 10; 
+// global variables for the microSD --------------------------------------------
 File outFile;
 
 
-// global variables for the buzzers
+// global variables for the buzzers --------------------------------------------
 const int BUZZER_PINS[4] = {6, 7, 8, 9};
 const int RED_TONE = 440;
 const int GREEN_TONE = 660;
 
 
-// global variables for incrementing internal time
-unsigned long previousLogTime = 0;                  // Tracks time passed for logging
-const unsigned long logInterval = 1000;             // Interval for logging (in milliseconds)
+// global variables for time
+const unsigned long maxWait = 10000;
+unsigned long lastForce[4] = {0, 0, 0, 0};
 
 
-// Traffic Light States
-enum TrafficStates { RED, GREEN };                  // CHECK THIS OUT LATER (!)
-TrafficStates currentState[4];
-
-
-// global time variables
-const unsigned long waitThreshold = 10000; 
-unsigned long stateChangeTime[4] = {0, 0, 0, 0}; // Tracks when state was last changed
-unsigned long waitTimes[4] = {0, 0, 0, 0};
-
-
-
-void setup() {
+void setup() { // --------------------------------------------------------------
 
   Serial.begin(9600);
 
-  // SD Card
-  pinMode(SD_CS_PIN, OUTPUT);
-  // Serial.println("Initializing SD Card...");
+  // init for the microSD
+  pinMode(10, OUTPUT);                // pin for sd card
 
-  // check if it begins right
-  if (!SD.begin(SD_CS_PIN)) {
+  if (!SD.begin(10)) {
     Serial.println("Something went wrong with the SD Card!");
-    while (1); // Stops running if SD card fails to initialize
+    while (1);                        // stops the program from continuing
   }
-  // Serial.println("SD card initialized successfully.");
 
-  // check if the file is fine
   outFile = SD.open("results.txt", FILE_WRITE);
+
   if (!outFile) {
     Serial.println("Something went wrong with the SD Card File!");
-    while (1); // Stops running if file doesn't open
+    while (1); 
   }
-  // Serial.println("Log file opened successfully.");
 
-
-  //NeoPixel Ring Section
+  // init for the neopixel
   strip.begin();
   strip.show();
   strip.setBrightness(25);
 
-  // FSR Pins
-  for (int i = 0; i < NUM_FSR; i++) {
+  // init for the FSRs
+  for (int i = 0; i < 4; i++) {
     pinMode(FSR_PINS[i], INPUT);
   }
 
-  // Buzzer Pins
-  for (int i = 0; i < NUM_FSR; i++) {
+  // init for buzzers
+  for (int i = 0; i < 4; i++) {
     pinMode(BUZZER_PINS[i], OUTPUT);
     noTone(BUZZER_PINS[i]);
   }
 
-  // Traffic Light States
-  for (int i = 0; i < NUM_FSR; i++) {
-    currentState[i] = RED; // Starts with RED light
-    setGroupPixelColor(i, strip.Color(255, 0, 0)); // Sets Neopixels to Red
+  // init the traffic light states to be green and red
+  setLight(nSouth, GREEN);
+  setLight(eWest, RED);
+  currentState[0] = GREEN;
+  currentState[1] = RED;
+
+}
+
+void loop() { // ---------------------------------------------------------------
+
+  // variables to store FSR input
+  int forceMeasurement[4];
+  /* because there's no tangible difference between if one or two FSRs on the
+     same road is activated, condense into just two again */
+  // bool forceDetected[2] = {false, false};
+
+  // getting the reading from each fsr
+  for (int i = 0; i < 4; i++) {
+
+    // update measurements
+    forceMeasurement[i] = analogRead(FSR_PINS[i]);
+
+    // if force is detected...
+    if (forceMeasurement[i] > forceThreshold) {
+
+      if (pressureOn[i] == false) {
+
+        // record the last time force was exerted
+        lastForce[i] = millis();
+
+      }
+
+      pressureOn[i] = true;
+
+      // update boolean to true
+      // forceDetected[i % 2] = true;
+
+      determineBehavior(i);
+
+
+    } else {
+
+      pressureOn[i] = false;
+
+    }
   }
+}
+
+void setLight(int roadRep, int colorRep) {
+
+  // for loop to get all of the indices for the matching road
+  for (int i = 0; i < 6; i++) {
+
+    int neoIndex = FSR_INDICES[roadRep][i];
+
+    if (colorRep == 0) {                               // change it to red
+
+      strip.setPixelColor(neoIndex, strip.Color(255, 0, 0));
+      currentState[roadRep] = RED;
+
+    } else if (colorRep == 1) {                       // change it to green
+
+      strip.setPixelColor(neoIndex, strip.Color(0, 255, 0));
+      currentState[roadRep] = GREEN;
+
+
+    } else {                                     // something is wrong, blue
+
+      strip.setPixelColor(neoIndex, strip.Color(0, 255, 0));
+      currentState[roadRep] = 3;
+
+
+    }
+  }
+
   strip.show();
 
 }
 
-void loop() {
+int getOpp(int index) {
 
-  // Var to track if any FSR exceeds the threshold value
-  // bool anyForceDetected = false; (x)
+  if (index == 0 || index == 2) {
+    return 1;
 
-  bool forceDetected[NUM_FSR] = {false, false, false, false};                            // !!!!!!
+  } else {
+    return 0;
 
-  // Array to store FSR readings, an array of 4
-  int fsrReadings[NUM_FSR];
-
-  // Serial.println("FSR Readings:");
-
-  // getting the FSR value for each FSR
-  for (int i = 0; i < NUM_FSR; i++) {
-
-    // update the applicable pressure reading
-    fsrReadings[i] = analogRead(FSR_PINS[i]);
-
-    // Serial.print("FSR ");
-    // Serial.print(i + 1);
-    // Serial.print(": ");
-    // Serial.println(fsrReadings[i]); 
-
-    // if there is pressure detected in ONE fsr
-    if (fsrReadings[i] > FORCE_THRESHOLD) {
-
-      Serial.println("going green");
-      Serial.print("index of FSR detecting pressure :");
-      Serial.println(i);
-
-      // indicate pressure detected
-      forceDetected[i] = true;
-
-      // change the light to green
-      handleTrafficState(i, GREEN, forceDetected[i]);
-
-    // if there is no pressure detected
-    } else {
-
-      // change the light to red
-      handleTrafficState(i, RED, forceDetected[i]);
-    }
   }
 
-  // Serial.println("------------------------");
-
-  // Gets current time for logging
-  unsigned long currentMillis = millis();
-
-  // Checks to see if it's time to log data
-  if (currentMillis - previousLogTime >= logInterval) {
-      // Updates last log time
-      previousLogTime = currentMillis;
-
-      // Creates a timestamp
-      unsigned long timestamp = currentMillis;
-
-      // Sends FSR readings to SD card
-      outFile.print("Timestamp: ");
-      outFile.print(timestamp);
-      outFile.print(" ms, FSR Readings: ");
-      for (int i = 0; i < NUM_FSR; i++) {
-          outFile.print(fsrReadings[i]);
-          if (i < NUM_FSR - 1) {
-              outFile.print(", ");
-          }
-      }
-      outFile.println();
-
-      // data is written to SD card
-      outFile.flush(); // ensures
-      // Serial.println("FSR readings logged to SD card.");
-
-  }  
-  delay(200);
 }
 
-void setGroupPixelColor(int groupIndex, int color) { // 0 for red, 1 for green for int color
+void determineBehavior(int fsrRep) {      // fsrRep = fsr that got the force
 
-    // for every index in groupIndex (0, 1, 2; 4, 5, 6; ...)
-    for(int i = 0; i < 3; i++) {
+  // so we know that one fsr got the force, now is it a green or red light
 
-      Serial.print("indices we're changing for the light :");
-      Serial.println(FSR_INDICES[groupIndex][i]);
+  // if the current state is green and has force just dont do anything
+  if (currentState[fsrRep % 2] == 1) {
 
-        // grabbing the index of the physical light to change
-        int pixelIndex = FSR_INDICES[groupIndex][i]; 
+    Serial.println("green stays green");
 
-        // change the light color
+    return;
 
-        // if the light is green
-        if (color == 0) {
+  } else if (currentState[fsrRep % 2] == 0) {     // red and force, DO SOMETHING
 
-          // change it to red
-          strip.setPixelColor(pixelIndex, strip.Color(255, 0, 0));
+    // get the current time
+    unsigned long curTime = millis();
 
-          // update the lights
-          strip.show();
+    // get the opposing FSR indices
+    int opposing = getOpp(fsrRep);
 
-        }
+    // if pressure has been on both within the past 5 seconds
+    if (curTime - lastForce[opposing] < 5000 || curTime - lastForce[opposing + 2] < 5000) {
 
-        // if the light is red
-        else if (color == 1) {
-          
-          // change it to green
-          strip.setPixelColor(pixelIndex, strip.Color(0, 255, 0));
+      Serial.println("im not freaking out!");
 
-          // update the lights
-          strip.show();
-        }
-
-        else {
-
-          // change it to blue, something is up
-          strip.setPixelColor(pixelIndex, strip.Color(0, 0, 255));
-
-          // update the lights
-          strip.show();
-
-        }
-        
-    }
-}
-
-void handleTrafficState(int groupIndex, TrafficStates newState, bool force) {
+      // the light shouldn't change yet, there's still motion
+      return;
 
 
-  // if the lights are currently red
-  if (currentState[groupIndex] == RED) {
+      // if there's been no pressure on opposing within the past 5 seconds
+    } else if (curTime - lastForce[opposing] > 5000 || curTime - lastForce[opposing + 2] > 5000) {
 
-    // if they've waited more time than the threshold AND there's force on the FSR (someone is there)
-    if ((millis() - stateChangeTime[groupIndex] >= waitThreshold) && (force)) {
+      Serial.println("clear roads for 5 seconds, changing lights");
 
-      // update currentState array to update the light representation internally
-      currentState[groupIndex] = GREEN;
+      // change the lights, the roads have been clear
+      setLight((fsrRep % 2), GREEN);
+      setLight((1 - (fsrRep % 2)), RED);
 
-      // actually should be setting the color to green
-      setGroupPixelColor(groupIndex, 1);
-
-      // update the internal timer for returning to the sdCard      (!)
-      waitTimes[groupIndex] = millis() - stateChangeTime[groupIndex];
-
-      // update the internal timer indicating the last time the color changed
-      stateChangeTime[groupIndex] = millis();
-
+      // make it so the pressure flag resets (a car moves away)
+      pressureOn[fsrRep] = false;
 
     }
-  }
 
-  // if the lights are currently green
-  if (currentState[groupIndex] == GREEN) {
+    // have they been waiting for too long
+    if (curTime - lastForce[fsrRep] > maxWait) {
 
-    // CHANGE THIS !!! / does this make sense ???
-    if (millis() - stateChangeTime[groupIndex] >= waitThreshold) {
+      Serial.println("waited too long, changing lights");
 
-      // update currentState to change the representation to red internally
-      currentState[groupIndex] = RED;
+      // change the lights regardless
+      setLight((fsrRep % 2), GREEN);
+      setLight((1 - (fsrRep % 2)), RED);
 
-      // actually should be setting the color to red
-      setGroupPixelColor(groupIndex, 0);
+      pressureOn[fsrRep] = false;
 
-      // update the internal timer indicating the last time the color changed
-      stateChangeTime[groupIndex] = millis();
+      Serial.println("red, waiting TOO LONG");
+
+
     }
   }
 }
