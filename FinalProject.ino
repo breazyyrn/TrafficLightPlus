@@ -116,6 +116,20 @@ void loop() { // ---------------------------------------------------------------
   }
 }
 
+void playBuzzerTone(int roadRep, int colorRep) {
+    int buzzerPin = BUZZER_PINS[roadRep]; // Select the buzzer for this road's traffic light
+
+    if (colorRep == RED) {
+        tone(buzzerPin, RED_TONE, 200);
+    } 
+    else if (colorRep == GREEN) {
+        tone(buzzerPin, GREEN_TONE, 200);
+    }
+
+    delay(200);
+    noTone(buzzerPin);
+}
+
 void setLight(int roadRep, int colorRep) {
 
   // for loop to get all of the indices for the matching road
@@ -138,14 +152,13 @@ void setLight(int roadRep, int colorRep) {
 
       strip.setPixelColor(neoIndex, strip.Color(0, 255, 0));
       currentState[roadRep] = 3;
-
-
     }
   }
-
-  strip.show();
-
+  
+  playBuzzerTone(roadRep, colorRep);
+  
 }
+
 
 int getOpp(int index) {
 
