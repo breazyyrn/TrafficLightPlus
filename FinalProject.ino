@@ -152,12 +152,12 @@ void setLight(int roadRep, int colorRep) {
 
       strip.setPixelColor(neoIndex, strip.Color(0, 255, 0));
       currentState[roadRep] = 3;
+
     }
+    
+    playBuzzerTone(roadRep, colorRep);
+    
   }
-  
-  playBuzzerTone(roadRep, colorRep);
-  
-}
 
 
 int getOpp(int index) {
