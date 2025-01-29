@@ -1,6 +1,6 @@
 //Including needed Libraries
-#include <Adafruit NeoPixel.h> //NeoPixel Ring
-#include <SD .h> //SD card
+#include <Adafruit_NeoPixel.h> //NeoPixel Ring
+#include <SD.h> //SD card
 
 #define D2 2
 #define NUMPIXELS 16
@@ -23,8 +23,8 @@ int index = 0;
 Adafruit_NeoPixel strip(NUMPIXELS, D2, NEO_GRB + NEO_KHZ800);
 
 // SD Card Vars
-const int sd_CS_PIN = 10; // CS Pin for SD Card
-File outfile; // File Object for logging data
+const int SD_CS_PIN = 10; // CS Pin for SD Card
+File outFile; // File Object for logging data
 
 // Buzzer Definitions
 const int BUZZER_PINS[4] = {6, 7, 8, 9};
@@ -34,20 +34,20 @@ const int RED_TONE = 440;
 const int GREEN_TONE = 660;
 
 // Timing definitions 
-unsigned lon previousLogTime = 0; // Tracks time passed for logging
+unsigned long previousLogTime = 0; // Tracks time passed for logging
 const unsigned long logInterval = 1000; // Interval for logging (in milliseconds)
 
 // Array for FSR to Neopixel mapping (each FSR controls 4 Neopixels)
 const int FSR_INDICES[4][3] = {
   {0, 1, 2},
-  {3, 4, 5},
-  {6, 7, 8},
-  {9, 10, 11}
+  {4, 5, 6},
+  {8, 9, 10},
+  {12, 13, 14}
 };
 
 // Traffic Light States
 enum TrafficStates { RED, GREEN};
-TrafficState current[4];
+TrafficStates currentState[4];
 
 // Timer Definitions for each FSR group
 unsigned long stateChangeTime[4] = {0, 0, 0, 0}; // Tracks when state was last changed
@@ -67,8 +67,8 @@ void setup() {
   }
   Serial.println("SD card initialized successfully.");
 
-  OutFile = SD.open("results.txt", FILE_WRITE);
-  if (!OutFile) {
+  outFile = SD.open("results.txt", FILE_WRITE);
+  if (!outFile) {
     Serial.println("Something went wrong with the SD Card File!");
     while (1); // Stops running if file doesn't open
   }
@@ -81,7 +81,7 @@ void setup() {
   strip.setBrightness(25);
 
   // FSR Pins
-  for (int i = 0; o < NUM_FSR; i++) {
+  for (int i = 0; i < NUM_FSR; i++) {
     pinMode(FSR_PINS[i], INPUT);
   }
 
@@ -98,7 +98,7 @@ void setup() {
   // Traffic Light States
   for (int i = 0; i < NUM_FSR; i++) {
     currentState[i] = RED; // Starts with RED light
-    setPizelColor(i, strip.Color(255, 0, 0)); // Sets Neopixels to Red
+    setPixelColor(i, strip.Color(255, 0, 0)); // Sets Neopixels to Red
   }
   strip.show();
 
@@ -163,8 +163,8 @@ void loop() {
       outFile.println();
 
       // data is written to SD card
-      OutFile.flush();
-      Serial.println("FSR readings logged to SD card.");
+      // OutFile.flush(); // ensures
+      // Serial.println("FSR readings logged to SD card.");
 
   }  
   delay(200);
@@ -178,4 +178,27 @@ void setPixelColor(int groupIndex, uint32_t color) {
         }
     }
 }
-     
+
+void handleTrafficState(int groupIndex, TrafficStates newState) {
+    if (currentState[groupIndex] != newState) {
+        stateChangeTime[groupIndex] = millis();
+        currentState[groupIndex] = newState;
+
+        if (newState == GREEN) {
+            setPixelColor(groupIndex, strip.Color(0, 255, 0)); // Green
+            // playBuzzerTone(groupIndex, 0x00FF00);
+        } else { // RED
+            setPixelColor(groupIndex, strip.Color(255, 0, 0)); // Red
+            // playBuzzerTone(groupIndex, 0xFF0000);
+        }
+    }
+    else {
+        // If in GREEN & waitThreshold passed => go RED
+        if (currentState[groupIndex] == GREEN && (millis() - stateChangeTime[groupIndex] > waitThreshold)) {
+            currentState[groupIndex] = RED;
+            setPixelColor(groupIndex, strip.Color(255, 0, 0));
+            // playBuzzerTone(groupIndex, 0xFF0000);
+            stateChangeTime[groupIndex] = millis();
+        }
+    }
+}
