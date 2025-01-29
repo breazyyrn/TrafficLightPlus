@@ -51,7 +51,7 @@ TrafficStates currentState[4];
 
 // Timer Definitions for each FSR group
 unsigned long stateChangeTime[4] = {0, 0, 0, 0}; // Tracks when state was last changed
-const unsigned long waitThreshold = 20000; // 20 seconds threshold
+const unsigned long waitThreshold = 30000; // 20 seconds threshold
 
 void setup() {
 
@@ -180,25 +180,19 @@ void setGroupPixelColor(int groupIndex, uint32_t color) { //I think the issue is
 }
 
 void handleTrafficState(int groupIndex, TrafficStates newState) {
-    if (currentState[groupIndex] != newState) {
+    if (currentState[groupIndex] == RED) {
+      if (fsrReading > FORCE_THRESHOLD && (millis() - stateChangeTime[groupIndex] >= waitThreshold)) {
+        currentState[groupIndex] = GREEN;
+        setGroupPixelColor(groupIndex, strip.Color(0, 255, 0));
         stateChangeTime[groupIndex] = millis();
-        currentState[groupIndex] = newState;
+      }
+  }
 
-        if (newState == GREEN) {
-            setGroupPixelColor(groupIndex, strip.Color(0, 255, 0)); // Green
-            // playBuzzerTone(groupIndex, 0x00FF00);
-        } else { // RED
-            setGroupPixelColor(groupIndex, strip.Color(255, 0, 0)); // Red
-            // playBuzzerTone(groupIndex, 0xFF0000);
+      if (currentState[groupIndex] == GREEN) {
+        if (millis() - stateChangeTime[groupIndex] >= waitThreshold) {
+          currentState[groupIndex] = RED;
+          setGroupPixelColor(groupIndex, strip.Color(255, 0, 0));
+          stateChangeTime[groupIndex] = millis();
         }
-    }
-    else {
-        // If in GREEN & waitThreshold passed => go RED
-        if (currentState[groupIndex] == GREEN && (millis() - stateChangeTime[groupIndex] > waitThreshold)) {
-            currentState[groupIndex] = RED;
-            setGroupPixelColor(groupIndex, strip.Color(255, 0, 0));
-            // playBuzzerTone(groupIndex, 0xFF0000);
-            stateChangeTime[groupIndex] = millis();
-        }
-    }
+      }
 }
