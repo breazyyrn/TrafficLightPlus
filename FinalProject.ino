@@ -37,7 +37,7 @@ const int GREEN_TONE = 660;
 unsigned long previousLogTime = 0; // Tracks time passed for logging
 const unsigned long logInterval = 1000; // Interval for logging (in milliseconds)
 
-// Array for FSR to Neopixel mapping (each FSR controls 4 Neopixels)
+// Array for FSR to Neopixel mapping (each FSR controls 3 Neopixels)
 const int FSR_INDICES[4][3] = {
   {0, 1, 2},
   {4, 5, 6},
@@ -163,16 +163,16 @@ void loop() {
       outFile.println();
 
       // data is written to SD card
-      // OutFile.flush(); // ensures
-      // Serial.println("FSR readings logged to SD card.");
+      outFile.flush(); // ensures
+      Serial.println("FSR readings logged to SD card.");
 
   }  
   delay(200);
 }
 
-void setPixelColor(int groupIndex, uint32_t color) {
-    for(int i = 0; i < 4; i++) {
-        int pixelIndex = FSR_INDICES[groupIndex][i];
+void setGroupPixelColor(int groupIndex, uint32_t color) { //I think the issue is that neopixel already has a setPixelColor function. So imma change the name here
+    for(int i = 0; i < 3; i++) {
+        int pixelIndex = FSR_INDICES[groupIndex][i]; //Grabs the index value of the current FSR's ith index
         if (pixelIndex >= 0 && pixelIndex < NUMPIXELS) {
             strip.setPixelColor(pixelIndex, color);
         }
@@ -185,10 +185,10 @@ void handleTrafficState(int groupIndex, TrafficStates newState) {
         currentState[groupIndex] = newState;
 
         if (newState == GREEN) {
-            setPixelColor(groupIndex, strip.Color(0, 255, 0)); // Green
+            setGroupPixelColor(groupIndex, strip.Color(0, 255, 0)); // Green
             // playBuzzerTone(groupIndex, 0x00FF00);
         } else { // RED
-            setPixelColor(groupIndex, strip.Color(255, 0, 0)); // Red
+            setGroupPixelColor(groupIndex, strip.Color(255, 0, 0)); // Red
             // playBuzzerTone(groupIndex, 0xFF0000);
         }
     }
@@ -196,7 +196,7 @@ void handleTrafficState(int groupIndex, TrafficStates newState) {
         // If in GREEN & waitThreshold passed => go RED
         if (currentState[groupIndex] == GREEN && (millis() - stateChangeTime[groupIndex] > waitThreshold)) {
             currentState[groupIndex] = RED;
-            setPixelColor(groupIndex, strip.Color(255, 0, 0));
+            setGroupPixelColor(groupIndex, strip.Color(255, 0, 0));
             // playBuzzerTone(groupIndex, 0xFF0000);
             stateChangeTime[groupIndex] = millis();
         }
