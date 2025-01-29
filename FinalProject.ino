@@ -80,9 +80,6 @@ void loop() { // ---------------------------------------------------------------
 
   // variables to store FSR input
   int forceMeasurement[4];
-  /* because there's no tangible difference between if one or two FSRs on the
-     same road is activated, condense into just two again */
-  // bool forceDetected[2] = {false, false};
 
   // getting the reading from each fsr
   for (int i = 0; i < 4; i++) {
@@ -102,9 +99,6 @@ void loop() { // ---------------------------------------------------------------
 
       pressureOn[i] = true;
 
-      // update boolean to true
-      // forceDetected[i % 2] = true;
-
       determineBehavior(i);
 
 
@@ -114,20 +108,6 @@ void loop() { // ---------------------------------------------------------------
 
     }
   }
-}
-
-void playBuzzerTone(int roadRep, int colorRep) {
-    int buzzerPin = BUZZER_PINS[roadRep]; // Select the buzzer for this road's traffic light
-
-    if (colorRep == RED) {
-        tone(buzzerPin, RED_TONE, 200);
-    } 
-    else if (colorRep == GREEN) {
-        tone(buzzerPin, GREEN_TONE, 200);
-    }
-
-    delay(200);
-    noTone(buzzerPin);
 }
 
 void setLight(int roadRep, int colorRep) {
@@ -153,12 +133,14 @@ void setLight(int roadRep, int colorRep) {
       strip.setPixelColor(neoIndex, strip.Color(0, 255, 0));
       currentState[roadRep] = 3;
 
+
     }
-    
-    playBuzzerTone(roadRep, colorRep);
-    
   }
 
+  strip.show();
+  playBuzzerTone(roadRep, colorRep);
+
+}
 
 int getOpp(int index) {
 
@@ -230,4 +212,18 @@ void determineBehavior(int fsrRep) {      // fsrRep = fsr that got the force
 
     }
   }
+}
+
+void playBuzzerTone(int roadRep, int colorRep) {
+    int buzzerPin = BUZZER_PINS[roadRep]; // Select the buzzer for this road's traffic light
+
+    if (colorRep == RED) {
+        tone(buzzerPin, RED_TONE, 200);
+    }
+    else if (colorRep == GREEN) {
+        tone(buzzerPin, GREEN_TONE, 200);
+    }
+
+    delay(200);
+    noTone(buzzerPin);
 }
