@@ -98,7 +98,7 @@ void setup() {
   // Traffic Light States
   for (int i = 0; i < NUM_FSR; i++) {
     currentState[i] = RED; // Starts with RED light
-    setPixelColor(i, strip.Color(255, 0, 0)); // Sets Neopixels to Red
+    setGroupPixelColor(i, strip.Color(255, 0, 0)); // Sets Neopixels to Red
   }
   strip.show();
 
@@ -181,7 +181,7 @@ void setGroupPixelColor(int groupIndex, uint32_t color) { //I think the issue is
 
 void handleTrafficState(int groupIndex, TrafficStates newState) {
     if (currentState[groupIndex] == RED) {
-      if (fsrReading > FORCE_THRESHOLD && (millis() - stateChangeTime[groupIndex] >= waitThreshold)) {
+      if ((millis() - stateChangeTime[groupIndex] >= waitThreshold)) {
         currentState[groupIndex] = GREEN;
         setGroupPixelColor(groupIndex, strip.Color(0, 255, 0));
         stateChangeTime[groupIndex] = millis();
