@@ -1,6 +1,7 @@
 #include <Adafruit_NeoPixel.h> 
 #include <SD.h>
 
+
 // global variables for the FSRs -----------------------------------------------
 int forceThreshold = 200;
 const int FSR_PINS[4] = {A0, A1, A2, A3};      // 0 and 2, 1 and 3 connected
@@ -108,6 +109,9 @@ void loop() { // ---------------------------------------------------------------
 
     }
   }
+
+  outFile.flush();
+
 }
 
 void setLight(int roadRep, int colorRep) {
@@ -162,7 +166,6 @@ void determineBehavior(int fsrRep) {      // fsrRep = fsr that got the force
   if (currentState[fsrRep % 2] == 1) {
 
     Serial.println("green stays green");
-
     return;
 
   } else if (currentState[fsrRep % 2] == 0) {     // red and force, DO SOMETHING
@@ -178,6 +181,12 @@ void determineBehavior(int fsrRep) {      // fsrRep = fsr that got the force
 
       Serial.println("im not freaking out!");
 
+      if (fsrRep % 2 == 0) { 
+        outFile.println("nSouth is waiting to cross eWest.");
+      } else {
+        outFile.println("eWest is waiting to cross nSouth.");
+      }
+
       // the light shouldn't change yet, there's still motion
       return;
 
@@ -186,6 +195,12 @@ void determineBehavior(int fsrRep) {      // fsrRep = fsr that got the force
     } else if (curTime - lastForce[opposing] > 5000 || curTime - lastForce[opposing + 2] > 5000) {
 
       Serial.println("clear roads for 5 seconds, changing lights");
+
+      if (fsrRep % 2 == 0) { 
+        outFile.println("eWest has been clear, nSouth is crossing now.");
+      } else {
+        outFile.println("nSouth has been clear, eWest is crossing now.");
+      }
 
       // change the lights, the roads have been clear
       setLight((fsrRep % 2), GREEN);
@@ -200,6 +215,12 @@ void determineBehavior(int fsrRep) {      // fsrRep = fsr that got the force
     if (curTime - lastForce[fsrRep] > maxWait) {
 
       Serial.println("waited too long, changing lights");
+
+      if (fsrRep % 2 == 0) { 
+        outFile.println("nSouth has waited for long enough, they're crossing now.");
+      } else {
+        outFile.println("eWest has waited for long enough, they're crossing now.");
+      }
 
       // change the lights regardless
       setLight((fsrRep % 2), GREEN);
